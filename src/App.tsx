@@ -66,8 +66,25 @@ function App() {
 			reader.onload = (e) => {
 				if (e.target?.result) {
 					const uploaded = JSON.parse(e.target.result.toString())
-					setLocalTheme(uploaded)
-					setOrigin(uploaded)
+					const {base, colors, inherit, rules} = uploaded
+					setLocalTheme((prev) => ({
+						base,
+						inherit,
+						rules,
+						colors: {
+							...prev.colors,
+							...colors
+						}
+					}))
+					setOrigin((prev) => ({
+						base,
+						inherit,
+						rules,
+						colors: {
+							...prev.colors,
+							...colors
+						}
+					}))
 				}
 			};
 			reader.readAsText(file);
