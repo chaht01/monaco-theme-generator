@@ -6,6 +6,7 @@ import { ThemeColorEditor } from './ThemeColorEditor';
 import { Button, ButtonGroup, Stack, styled } from '@mui/material';
 import { ThemeRuleEditor } from './ThemeRuleEditor';
 import { files } from './files';
+import DefaultColorList from './colorList.json'
 
 const VisuallyHiddenInput = styled('input')({
 	clip: 'rect(0 0 0 0)',
@@ -19,18 +20,156 @@ const VisuallyHiddenInput = styled('input')({
 	width: 1,
 });
 
+export interface Rule {
+	token: string
+	foreground?: string
+	background?: string
+	fontStyle?: string
+	active?: boolean
+}
+
+export interface Color {
+	color: string
+	description?: string
+	active?: boolean
+}
+
+export interface ThemeStoreType {
+	base: string
+	inherit: boolean
+	colors: Record<string, Color>
+	rules: Rule[]
+}
+
+export interface ThemeType {
+	base: string
+	inherit: boolean
+	colors: Record<string, string>
+	rules: Rule[]
+}
+
+function initThemeStore (theme: ThemeType) {
+	const {base, inherit, colors, rules} = theme
+	
+	const themeStore = {
+		base,
+		inherit,
+		colors: {},
+		rules: []
+	}
+
+	const keys = Object.keys(DefaultColorList)
+	keys.forEach(key => {
+		// @ts-ignore
+		themeStore.colors[key] = {
+			// @ts-ignore
+			color: extractHexFromString(DefaultColorList[key]["defaultSnippets"][0]["body"]),
+			// @ts-ignore
+			description: DefaultColorList[key]["description"],
+			active: false
+		}
+		
+	})
+
+	Object.entries(colors).map(([key, value]) => {
+		// @ts-ignore
+		themeStore.colors[key].color = value
+		// @ts-ignore
+		themeStore.colors[key].active = true
+	})
+	// @ts-ignore
+	themeStore.rules = rules.map(rule => ({
+		...rule,
+		active: true
+	}))
+
+	return themeStore
+}
+
+
+// function getRemainColors (localTheme:LocalThemeType) {
+// 	const keys = Object.keys(DefaultColorList)
+// 	const localColors = localTheme.colors
+// 	const remains = {}
+
+// 	keys.forEach(key => {
+// 		if (localColors[key] === undefined) {
+// 			// @ts-ignore
+// 			remains[key] = extractHexFromString(DefaultColorList[key]["defaultSnippets"][0]["body"])
+// 		}
+// 	})
+// 	return remains
+// }
+
+function extractHexFromString(str:string) {
+	const hexRegex = /#[0-9A-Fa-f]{6}/g; // 정규 표현식을 이용하여 hex 문자열을 찾습니다.
+	const hexMatches = str.match(hexRegex); // 문자열에서 정규 표현식에 매치되는 부분을 찾습니다.
+  
+	if (hexMatches) {
+	  return hexMatches[0]; // 첫 번째로 매치된 hex 문자열을 반환합니다.
+	} else {
+	  return null; // 매치되는 hex 문자열이 없을 경우 null을 반환합니다.
+	}
+  }
+
+function decodeThemeStore (themeStore:ThemeStoreType) {
+	const {base, inherit, colors, rules} = themeStore
+
+	const keys = Object.keys(colors)
+
+	const decodedColors = {}
+
+	keys.map(key => {
+		if (colors[key].active) {
+			// @ts-ignore
+			decodedColors[key] = colors[key].color
+		}
+	})
+	
+	return {
+		base,
+		inherit,
+		rules: rules.map(rule => {
+			const {active, ...rest} = rule
+			return {
+				...rest
+			}
+		}),
+		colors: decodedColors
+	}
+}
+
 function App() {
 	const monaco = useMonaco()
-	const [origin, setOrigin] = useState(CTThemeData)
-	const [localTheme, setLocalTheme] = useState(CTThemeData)
+	const themeStore = initThemeStore(CTThemeData)
+	const [origin, setOrigin] = useState<ThemeStoreType>(themeStore)
+	const [localTheme, setLocalTheme] = useState<ThemeStoreType>(themeStore)
 	const [fileName, setFileName] = useState<keyof typeof files>('js');
+
+	// console.log(initThemeStore(CTThemeData))
 
 	const handleColorChange = (key: string, newValue: string) => {
 		setLocalTheme({
 			...localTheme,
 			colors: {
 				...localTheme.colors,
-				[key]: newValue
+				[key]: {
+					...localTheme.colors[key],
+					color: newValue
+				}
+			}
+		})
+	}
+
+	const handleActiveChange = (key: string, newValue: boolean) => {
+		setLocalTheme({
+			...localTheme,
+			colors: {
+				...localTheme.colors,
+				[key]: {
+					...localTheme.colors[key],
+					active: newValue
+				}
 			}
 		})
 	}
@@ -77,7 +216,7 @@ function App() {
 
 	useEffect(() => {
 		if (monaco && monaco.editor) {
-			monaco.editor.defineTheme('ct', localTheme)
+			monaco.editor.defineTheme('ct', decodeThemeStore(localTheme))
 			monaco.editor.setTheme('ct')
 		}
 
@@ -130,7 +269,12 @@ function App() {
 			</Stack>
 			<Stack px={4} direction={'row'} spacing={2}>
 				<Stack sx={{ position: 'sticky', top: 10 }}>
-					<ThemeColorEditor origin={origin.colors} colors={localTheme.colors} handleColorChange={handleColorChange} />
+					<ThemeColorEditor 
+						origin={origin.colors} 
+						colors={localTheme.colors} 
+						handleColorChange={handleColorChange} 
+						handleActiveChange={handleActiveChange}
+						/>
 				</Stack>
 				<ThemeRuleEditor origin={origin.rules} rules={localTheme.rules} handleRuleChange={handleRuleChange} />
 			</Stack>
