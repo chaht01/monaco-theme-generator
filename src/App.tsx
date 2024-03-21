@@ -7,6 +7,7 @@ import { Button, ButtonGroup, Stack, styled } from '@mui/material';
 import { ThemeRuleEditor } from './ThemeRuleEditor';
 import { files } from './files';
 import DefaultColorList from './colorList.json'
+import { useDebouncedCallback, useThrottledCallback } from 'use-debounce';
 
 const VisuallyHiddenInput = styled('input')({
 	clip: 'rect(0 0 0 0)',
@@ -141,37 +142,41 @@ function decodeThemeStore (themeStore:ThemeStoreType) {
 
 function App() {
 	const monaco = useMonaco()
-	const themeStore = initThemeStore(CTThemeData)
-	const [origin, setOrigin] = useState<ThemeStoreType>(themeStore)
-	const [localTheme, setLocalTheme] = useState<ThemeStoreType>(themeStore)
-	const [fileName, setFileName] = useState<keyof typeof files>('js');
 
-	// console.log(initThemeStore(CTThemeData))
+	const keyList = Object.keys(DefaultColorList)
+	// keyList.map(key => {
+	// 	// @ts-ignore
+	// 	if(!CTThemeData.colors[key]){
+	// 		// @ts-ignore
+	// 		additionalTheme.colors[key] = extractHexFromString(DefaultColorList[key].defaultSnippets[0].body)
+	// 	}
+		
+	// })
+
+	const [origin, setOrigin] = useState(CTThemeData)
+	const [localTheme, setLocalTheme] = useState(CTThemeData)
+	const [additionalTheme, setAdditionalTheme] = useState({
+		...CTThemeData,
+		// @ts-ignore
+		colors: keyList.map(key => ([key, extractHexFromString(DefaultColorList[key].defaultSnippets[0].body)])).reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
+	})
+	const [activeColorKeys, setActiveColorKeys] = useState<string[]>([])
+
+	const [fileName, setFileName] = useState<keyof typeof files>('js');
 
 	const handleColorChange = (key: string, newValue: string) => {
 		setLocalTheme({
 			...localTheme,
 			colors: {
 				...localTheme.colors,
-				[key]: {
-					...localTheme.colors[key],
-					color: newValue
-				}
+				[key]: newValue
 			}
 		})
 	}
 
 	const handleActiveChange = (key: string, newValue: boolean) => {
-		setLocalTheme({
-			...localTheme,
-			colors: {
-				...localTheme.colors,
-				[key]: {
-					...localTheme.colors[key],
-					active: newValue
-				}
-			}
-		})
+		setActiveColorKeys(prev => newValue ? prev.filter(k =>k !== key).concat(key) : prev.filter(k =>k !== key))
+		
 	}
 
 	const handleRuleChange = (token: string, newValue: Record<string, string>) => {
@@ -216,7 +221,7 @@ function App() {
 
 	useEffect(() => {
 		if (monaco && monaco.editor) {
-			monaco.editor.defineTheme('ct', decodeThemeStore(localTheme))
+			monaco.editor.defineTheme('ct', localTheme)
 			monaco.editor.setTheme('ct')
 		}
 
@@ -272,7 +277,9 @@ function App() {
 					<ThemeColorEditor 
 						origin={origin.colors} 
 						colors={localTheme.colors} 
+						additionalColors={additionalTheme.colors}
 						handleColorChange={handleColorChange} 
+						activeColorKeys={activeColorKeys}
 						handleActiveChange={handleActiveChange}
 						/>
 				</Stack>

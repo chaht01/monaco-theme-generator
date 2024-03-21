@@ -13,6 +13,8 @@ interface PopoverPickerProps {
 export const PopoverPicker = ({ color, onChange, undo }: PopoverPickerProps) => {
     const [isOpen, toggle] = useState(false);
 
+    console.log(color)
+
     const debounced = useDebouncedCallback((value:string) => onChange(value), 10)
 
     const rgbaString = useMemo(() => {
